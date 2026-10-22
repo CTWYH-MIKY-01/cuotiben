@@ -167,6 +167,33 @@ header{display:flex;align-items:center;justify-content:space-between;flex-wrap:w
   background:rgba(46,107,79,.07);border:1px dashed var(--blue);text-align:center;transition:opacity .4s;letter-spacing:.5px}
 #toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:rgba(38,51,45,.92);color:#fff;padding:11px 20px;
   border-radius:10px;font-size:14px;z-index:99;display:none;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:90vw;text-align:center}
+/* ===== 智能识别（框选 + OCR） ===== */
+.crop-mask{position:fixed;inset:0;background:rgba(15,25,20,.86);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;padding:14px}
+.crop-mask.show{display:flex}
+.crop-stage{position:relative;background:#111;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);max-width:min(94vw,720px);max-height:72vh;overflow:hidden;touch-action:none}
+.crop-stage canvas{display:block;max-width:100%;max-height:72vh}
+.crop-stage .crop-box{position:absolute;border:2px solid #4cd690;background:rgba(76,214,144,.18);pointer-events:none;box-shadow:0 0 0 9999px rgba(15,25,20,.35)}
+.crop-tip{color:#cfe9da;font-size:13px;margin:10px 0 6px;text-align:center}
+.crop-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px}
+.ocr-line{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+.ocr-line .btn.small{min-height:34px}
+.ocr-result{background:#f4f8f5;border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13px;color:var(--muted);line-height:1.7;word-break:break-word}
+.ocr-result.ok{color:var(--green)}
+.knowlink{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--border);border-radius:16px;padding:4px 12px;font-size:13px;color:var(--blue);background:#fff;text-decoration:none;margin:4px 6px 0 0;transition:.13s}
+.knowlink:hover{background:var(--blue-light);border-color:var(--blue)}
+.point-chip{display:inline-block;background:var(--blue-light);color:var(--blue);border-radius:14px;padding:3px 11px;font-size:13px;margin:3px 5px 0 0;font-weight:600}
+.hot-list{margin-top:10px}
+.hot-item{display:flex;align-items:flex-start;gap:8px;border-bottom:1px dashed var(--border);padding:9px 2px;font-size:14px}
+.hot-item .no{width:24px;height:24px;border-radius:8px;background:linear-gradient(135deg,var(--blue),var(--blue2));color:#fff;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex-shrink:0}
+.hot-item .no.top{background:linear-gradient(135deg,#e09240,#d6741e)}
+.hot-item .txt{flex:1;min-width:0}
+.hot-item .txt b{font-weight:600}
+.hot-item .meta{font-size:12px;color:var(--muted);margin-top:2px}
+@media(max-width:760px){
+  .crop-mask{padding:8px}
+  .crop-stage{max-width:96vw;max-height:64vh}
+  .crop-actions .btn{min-height:44px;flex:1;text-align:center}
+}
 </style>
 </head>
 <body>
@@ -209,6 +236,24 @@ header{display:flex;align-items:center;justify-content:space-between;flex-wrap:w
             <div id="photoPreviews" style="display:flex;gap:10px;flex-wrap:wrap"></div>
           </div>
         </div>
+        <div class="field full" style="margin-top:6px">
+          <div class="ocr-line">
+            <button class="btn small orange" onclick="openOcrPick()">📷 框选识别（OCR 转文字）</button>
+            <button class="btn small ghost" onclick="openOcrConfig()">⚙️ OCR 配置</button>
+            <span id="ocrStatus" style="font-size:12px;color:var(--muted)"></span>
+          </div>
+          <div id="ocrInfo" class="ocr-result" style="display:none"></div>
+        </div>
+          </div>
+        </div>
+      </div>
+      <div class="grid" style="margin-top:14px">
+        <div class="field full"><label>题目内容（可编辑）</label><textarea id="f_q" style="min-height:88px" placeholder="OCR 识别后自动填入，可手动修改"></textarea></div>
+        <div class="field full"><label>选项（每行一个，如：A. xxx）</label><textarea id="f_opts" style="min-height:70px" placeholder="OCR 识别后自动填入"></textarea></div>
+        <div class="field"><label>题型</label><select id="f_kind"><option>单选</option><option>多选</option><option>判断</option><option>填空</option><option>简答</option></select></div>
+        <div class="field"><label>正确答案</label><input id="f_right" placeholder="如：B 或 6天"></div>
+        <div class="field"><label>我的错误答案</label><input id="f_wrong" placeholder="选错了的选项"></div>
+        <div class="field"><label>考点/知识点</label><input id="f_kw" placeholder="如：宪法基本原则"></div>
       </div>
       <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap">
         <button class="btn" onclick="saveEntry()">✅ 保存错题</button>
@@ -285,6 +330,14 @@ header{display:flex;align-items:center;justify-content:space-between;flex-wrap:w
   </section>
 </div>
 
+<div class="crop-mask" id="cropMask">
+  <div class="crop-stage" id="cropStage"><canvas id="cropCanvas"></canvas><div class="crop-box" id="cropBox"></div></div>
+  <div class="crop-tip">按住鼠标/手指拖动，框选题目区域后点“识别”</div>
+  <div class="crop-actions">
+    <button class="btn green" onclick="doCropOcr()">🔍 识别框选区域</button>
+    <button class="btn ghost" onclick="closeCrop()">取消</button>
+  </div>
+</div>
 <div class="modal" id="modal"><div class="modal-box" id="modalBox"></div></div>
 <div id="toast"></div>
 <input type="file" id="importFile" accept=".json" style="display:none" onchange="doImport(event)">
@@ -341,14 +394,200 @@ function renderPhotoPreviews(){
     box.appendChild(d)});
 }
 function removePhoto(i){collectPhotos.splice(i,1);renderPhotoPreviews()}
+
+function analyzeAutoTip(kind,kw){
+  const t=kind==="多选"?"多选注意：选全才得分，可用排除法逐项核对。":kind==="判断"?"判断题注意抓关键词，绝对化表述（一定/必然/所有）常为错。":kind==="填空"?"填空题注意单位与精度，计算后务必回代验证。":"认真读题，先排除明显错误选项，再对比剩余项。";
+  return kw?("围绕『"+kw+"』复习：先看教材定义，再刷同考点题巩固。"):t;
+}
+/* ================= 在线 OCR 智能识别（框选 + 转文字 + 自动解析） ================= */
+const OCR_CFG_KEY="ct_ocr_cfg_v1";
+let ocrCfg=null;
+function loadOcrCfg(){
+  if(ocrCfg)return ocrCfg;
+  try{const s=localStorage.getItem(OCR_CFG_KEY);if(s)ocrCfg=JSON.parse(s)}catch(e){}
+  if(!ocrCfg)ocrCfg={provider:"ocrspace",apikey:""};
+  return ocrCfg;
+}
+function saveOcrCfg(){try{localStorage.setItem(OCR_CFG_KEY,JSON.stringify(ocrCfg))}catch(e){}}
+function openOcrConfig(){
+  const cfg=loadOcrCfg();
+  openModal('<h3>⚙️ OCR 识别配置</h3>'
+    +'<div class="field"><label>服务商</label><select id="m_provider"><option value="ocrspace">OCR.space（免费 · 支持手机浏览器直连）</option></select></div>'
+    +'<div class="field" style="margin-top:10px"><label>API Key</label><input id="m_apikey" value="'+esc(cfg.apikey||"")+'" placeholder="粘贴你的 OCR.space API Key"></div>'
+    +'<div style="font-size:12px;color:var(--muted);margin-top:8px;line-height:1.7">'
+    +'注册免费 Key（1 分钟）：打开 <b>https://ocr.ocr.space/ocapikey</b>，用邮箱或 GitHub 登录即可获得，每月免费 25,000 次。<br>Key 仅保存在本机浏览器，不会上传。</div>'
+    +'<div class="modal-actions"><button class="btn" onclick="saveOcrCfgUi()">保存</button><button class="btn ghost" onclick="closeModal()">取消</button></div>');
+}
+function saveOcrCfgUi(){
+  const cfg=loadOcrCfg();
+  cfg.provider=$("m_provider").value;
+  cfg.apikey=$("m_apikey").value.trim();
+  saveOcrCfg();toast("✅ OCR 配置已保存");closeModal();
+}
+async function callOcrImage(dataUrl){
+  const cfg=loadOcrCfg();
+  const key=(cfg.apikey||"").trim();
+  if(!key){toast("请先配置 OCR 的 API Key");openOcrConfig();throw new Error("未配置 API Key，已为你打开配置窗口")}
+  const url="https://api.ocr.space/parse/image";
+  const form=new URLSearchParams();
+  form.set("apikey",key);
+  form.set("language","chs");
+  form.set("base64url",dataUrl);
+  form.set("isOverlayRequired","false");
+  let res;
+  try{res=await fetch(url,{method:"POST",body:form})}
+  catch(e){throw new Error("网络请求失败，请检查网络后重试（当前需联网识别）")}
+  if(!res.ok)throw new Error("OCR 服务响应异常（HTTP "+res.status+"）");
+  const j=await res.json();
+  if(j.IsErroredOnProcessing){throw new Error("OCR 识别失败："+String(j.ErrorMessage||"").slice(0,120))}
+  const t=(j.ParsedResults||[]).map(r=>r.ParsedText||"").join("\n");
+  if(!t.trim())throw new Error("未识别到文字，请重新框选或换张更清晰的照片");
+  return t.trim();
+}
+/* 框选裁剪状态 */
+let cropState=null;
+function openOcrPick(){
+  if(!collectPhotos.length){toast("请先拍照或上传题目照片");return}
+  if(collectPhotos.length===1){openCropEditor(0);return}
+  openModal('<h3>📸 选择要识别的照片</h3><div class="photo-thumbs">'
+    +collectPhotos.map((p,i)=>'<img src="'+p+'" onclick="openCropEditor('+i+')" style="cursor:pointer" title="点击框选识别">').join("")
+    +'</div><div class="modal-actions"><button class="btn ghost" onclick="closeModal()">取消</button></div>');
+}
+function openCropEditor(idx){
+  closeModal();
+  cropState={photoIdx:idx,img:null,ctx:null,down:false,sx:0,sy:0,cx:0,cy:0,w:0,h:0};
+  $("cropMask").classList.add("show");
+  const img=new Image();
+  img.onload=function(){
+    const c=$("cropCanvas");
+    const box=$("cropStage").getBoundingClientRect();
+    const maxW=Math.max(box.width-20,260),maxH=Math.max(box.height-20,260);
+    let w=img.width,h=img.height;
+    const s=Math.min(maxW/w,maxH/h,1);
+    w=Math.round(w*s);h=Math.round(h*s);
+    c.width=w;c.height=h;
+    const ctx=c.getContext("2d");
+    ctx.fillStyle="#232323";ctx.fillRect(0,0,w,h);
+    ctx.drawImage(img,0,0,w,h);
+    cropState.ctx=ctx;cropState.w=w;cropState.h=h;
+    $("cropBox").style.display="none";
+  };
+  img.src=collectPhotos[idx];
+}
+function cropPos(e){
+  const c=$("cropCanvas"),r=c.getBoundingClientRect();
+  const t=e.touches&&e.touches[0]?e.touches[0]:e;
+  return {x:t.clientX-r.left,y:t.clientY-r.top};
+}
+function cropStart(e){
+  if(!cropState)return;e.preventDefault();
+  const p=cropPos(e);
+  cropState.down=true;cropState.sx=p.x;cropState.sy=p.y;cropState.cx=p.x;cropState.cy=p.y;
+  drawCropBox();
+}
+function cropMove(e){
+  if(!cropState||!cropState.down)return;e.preventDefault();
+  const p=cropPos(e);
+  cropState.cx=p.x;cropState.cy=p.y;drawCropBox();
+}
+function cropUp(){if(cropState)cropState.down=false}
+function drawCropBox(){
+  const st=cropState,box=$("cropBox");
+  let x=Math.min(st.sx,st.cx),y=Math.min(st.sy,st.cy),w=Math.abs(st.cx-st.sx),h=Math.abs(st.cy-st.sy);
+  box.style.display=(w<6||h<6)?"none":"block";
+  box.style.left=Math.max(0,x)+"px";box.style.top=Math.max(0,y)+"px";
+  box.style.width=Math.min(w,st.w)+"px";box.style.height=Math.min(h,st.h)+"px";
+}
+function doCropOcr(){
+  const st=cropState;
+  if(!st||!st.ctx){toast("请先在照片上框选区域");return}
+  let x=Math.min(st.sx,st.cx),y=Math.min(st.sy,st.cy),w=Math.abs(st.cx-st.sx),h=Math.abs(st.cy-st.sy);
+  if(w<6||h<6){toast("框选区域太小，请重新框选");return}
+  x=Math.max(0,x);y=Math.max(0,y);w=Math.min(w,st.w-x);h=Math.min(h,st.h-y);
+  const out=document.createElement("canvas");
+  out.width=Math.round(w);out.height=Math.round(h);
+  out.getContext("2d").drawImage($("cropCanvas"),x,y,w,h,0,0,w,h);
+  const dataUrl=out.toDataURL("image/jpeg",0.92);
+  closeCrop();
+  runOcr(dataUrl);
+}
+async function runOcr(dataUrl){
+  const st=$("ocrStatus"),info=$("ocrInfo");
+  st.textContent="⏳ 正在识别…";info.style.display="none";
+  try{
+    const text=await callOcrImage(dataUrl);
+    const r=analyzeOcrText(text);
+    $("f_q").value=r.body;
+    $("f_opts").value=r.opts.join("\n");
+    $("f_kind").value=r.kind;
+    if(r.opts.length)toast("✅ 已识别题目与 "+r.opts.length+" 个选项，请核对并填答案");
+    else toast("✅ 已识别，请核对题目与答案");
+    info.style.display="block";info.className="ocr-result ok";
+    info.innerHTML="<b>识别结果（可编辑上方题目/选项）：</b><br>"+esc(text).replace(/\n/g,"<br>").slice(0,800);
+    st.textContent="";
+  }catch(e){
+    info.style.display="block";info.className="ocr-result";
+    info.innerHTML="✖ "+esc(e.message||String(e));
+    st.textContent="";
+  }
+}
+function closeCrop(){$("cropMask").classList.remove("show");cropState=null}
+/* 解析 OCR 文本 → 题目 + 选项 + 题型 */
+function analyzeOcrText(text){
+  const lines=text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const optRe=/^([A-H])[.、．:：)）\s]\s*(.+)$/;
+  let splitAt=-1;
+  for(let i=0;i<lines.length;i++){if(lines[i].match(optRe)){splitAt=i;break}}
+  const body=lines.slice(0,splitAt<0?lines.length:splitAt).join("\n");
+  const opts=[];
+  if(splitAt>=0){
+    for(let i=splitAt;i<lines.length;i++){const m=lines[i].match(optRe);if(m)opts.push(m[1]+". "+m[2])}
+  }
+  let kind="单选";
+  const all=body+" "+(opts.join(" "));
+  if(!opts.length){
+    if(/[（(]\s*[)）]|__|＿_/.test(all)||/[A-Z][.、]\s*$/.test(body))kind="填空";
+    else if(/判断|是否正确|对错|对的|错的/.test(all))kind="判断";
+    else kind="简答";
+  }else{
+    if(/多选|多项|不定项|哪些|全选/.test(all))kind="多选";
+    else if(/判断|是否正确|对错|√|×/.test(all))kind="判断";
+  }
+  return {body:body,opts:opts,kind:kind};
+}
+/* ================= 知识学习链接 ================= */
+function knowLinks(kw){
+  const e=encodeURIComponent(kw||"");
+  if(!e)return [];
+  return [
+    {t:"百度百科",u:"https://baike.baidu.com/item/"+e},
+    {t:"B站搜课",u:"https://search.bilibili.com/all?keyword="+e},
+    {t:"百度搜索",u:"https://www.baidu.com/s?wd="+encodeURIComponent(kw+" 公考")},
+    {t:"必应搜索",u:"https://cn.bing.com/search?q="+e},
+    {t:"知乎经验",u:"https://www.zhihu.com/search?type=content&q="+e}
+  ];
+}
+function knowLinksHTML(kw){
+  return knowLinks(kw).map(l=>'<a class="knowlink" href="'+l.u+'" target="_blank" rel="noopener">🔗 '+l.t+'</a>').join("");
+}
 function resetCollect(){
   $("f_src").value="国考";$("f_mod").value="常识判断";
+  $("f_q").value="";$("f_opts").value="";$("f_kind").value="单选";
+  $("f_right").value="";$("f_wrong").value="";$("f_kw").value="";
+  $("ocrInfo").style.display="none";$("ocrStatus").textContent="";
   collectPhotos=[];renderPhotoPreviews();
 }
 function saveEntry(){
   const src=$("f_src").value,mod=$("f_mod").value;
   if(!collectPhotos.length){toast("请先拍照或上传题目照片");return}
-  DB.entries.push({id:DB.nextId++,src,mod,type:"",kw:"",q:"",wrong:"",right:"",score:0,hot:"否",reasons:[],point:"",review:"未复盘",tip:"",photos:collectPhotos.slice(),created:new Date().toISOString()});
+  const q=$("f_q").value.trim();
+  const opts=$("f_opts").value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+  const kind=$("f_kind").value;
+  const right=$("f_right").value.trim();
+  const wrong=$("f_wrong").value.trim();
+  const kw=$("f_kw").value.trim();
+  const qFull=opts.length?(q+"\n"+opts.join("\n")):q;
+  DB.entries.push({id:DB.nextId++,src,mod,type:kind,kw:kw,q:qFull,wrong:wrong,right:right,score:1,hot:"否",reasons:[],point:kw,review:"未复盘",tip:analyzeAutoTip(kind,kw),photos:collectPhotos.slice(),created:new Date().toISOString()});
   saveDB();collectPhotos=[];renderPhotoPreviews();toast("✅ 错题已收录");resetCollect();updateCounts();renderBank();
 }
 
@@ -515,8 +754,10 @@ function showResult(q,user,ok){
   h+='<div class="analysis"><b>正确答案：</b><span style="color:var(--green);font-weight:700">'+esc(q.right)+'</span><br>';
   if(!ok&&user)h+='<b>我的答案：</b>'+esc(user)+'<br>';
   h+='<b>考点：</b>'+esc(q.point||"-")+'<br><b>错因：</b>'+esc((q.reasons||[]).join("、"))+'</div>';
+  const kw=q.kw||q.point||q.type||"";
+  if(kw)h+='<div class="analysis"><div class="box"><b>📚 学习链接：</b><br>'+knowLinksHTML(kw)+'</div></div>';
   if(q.tip)h+='<div class="analysis"><div class="box"><b>💡 解题技巧：</b><br>'+esc(q.tip)+'</div></div>';
-    const enc=pickEncourage(ok);
+  const enc=pickEncourage(ok);
   h+='<div class="encourage"><img src="'+enc.img+'" alt="鼓励表情包"><div class="txt">'+enc.text+'</div></div>';
   h+='</div>';
   box.innerHTML=h;
@@ -670,6 +911,27 @@ function renderReview(){
   h+='<h2 style="margin-top:6px"><span class="icon">📊</span> 各模块分布</h2>';
   mods.forEach(m=>{const n=DB.entries.filter(e=>e.mod===m).length;if(!n)return;
     h+='<div class="bar-wrap"><div class="bar-label"><span>'+m+'</span><span>'+n+' 题</span></div><div class="bar"><i style="width:'+Math.round(n/srcs*100)+'%"></i></div></div>'});
+  /* 🔥 高频错题榜 */
+  const hotList=DB.entries.filter(e=>e.hot==="是"||(e.review==="未复盘"&&e.score>=1));
+  if(hotList.length){
+    h+='<h2 style="margin-top:18px"><span class="icon">🔥</span> 高频错题榜</h2><div class="hot-list">';
+    hotList.slice(0,8).forEach((e,i)=>{
+      const name=e.kw||e.point||e.type||(e.q?e.q.slice(0,18):"未命名");
+      h+='<div class="hot-item"><div class="no '+(i<3?"top":"")+'">'+(i+1)+'</div><div class="txt"><b>'+esc(name)+'</b>'
+        +'<div class="meta">'+esc(e.src+" · "+e.mod)+' · '+(e.review==="是"?"高频":"待复盘")+'</div></div>'
+        +knowLinksHTML(e.kw||e.point||e.type||"")+'</div>';
+    });
+    h+='</div>';
+  }
+  /* 💡 知识点总结 */
+  const kmap={};
+  DB.entries.forEach(e=>{const k=(e.kw||e.point||"").trim();if(!k)return;kmap[k]=(kmap[k]||0)+1});
+  const keys=Object.entries(kmap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  if(keys.length){
+    h+='<h2 style="margin-top:18px"><span class="icon">💡</span> 知识点总结</h2>';
+    keys.forEach(kv=>{h+='<div style="margin:6px 0"><span class="point-chip">'+esc(kv[0])+' × '+kv[1]+'</span>'+knowLinksHTML(kv[0])+'</div>'});
+    h+='<div style="font-size:12px;color:var(--muted);margin-top:8px">点击链接可打开 百度百科 / B站 / 知乎 学习对应知识点（需联网）。</div>';
+  }
   g.innerHTML=h;
 }
 
