@@ -170,8 +170,8 @@ header{display:flex;align-items:center;justify-content:space-between;flex-wrap:w
 /* ===== 智能识别（框选 + OCR） ===== */
 .crop-mask{position:fixed;inset:0;background:rgba(15,25,20,.86);z-index:80;display:none;flex-direction:column;align-items:center;justify-content:center;padding:14px}
 .crop-mask.show{display:flex}
-.crop-stage{position:relative;background:#111;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);max-width:min(94vw,720px);max-height:72vh;overflow:hidden;touch-action:none}
-.crop-stage canvas{display:block;max-width:100%;max-height:72vh}
+.crop-stage{position:relative;background:#111;border-radius:12px;box-shadow:0 10px 40px rgba(0,0,0,.5);width:min(94vw,780px);height:min(76vh,660px);overflow:hidden;touch-action:none;display:flex;align-items:center;justify-content:center}
+.crop-stage canvas{display:block;max-width:100%;max-height:100%}
 .crop-stage .crop-box{position:absolute;border:2px solid #4cd690;background:rgba(76,214,144,.18);pointer-events:none;box-shadow:0 0 0 9999px rgba(15,25,20,.35)}
 .crop-tip{color:#cfe9da;font-size:13px;margin:10px 0 6px;text-align:center}
 .crop-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:4px}
@@ -191,7 +191,7 @@ header{display:flex;align-items:center;justify-content:space-between;flex-wrap:w
 .hot-item .meta{font-size:12px;color:var(--muted);margin-top:2px}
 @media(max-width:760px){
   .crop-mask{padding:8px}
-  .crop-stage{max-width:96vw;max-height:64vh}
+  .crop-stage{width:96vw;height:74vh}
   .crop-actions .btn{min-height:44px;flex:1;text-align:center}
 }
 </style>
@@ -403,7 +403,7 @@ let ocrTarget='q';    /* 当前OCR目标: q=题目 a=答案 */
 function compressImage(file,cb){
   const reader=new FileReader();
   reader.onload=function(e){const img=new Image();img.onload=function(){
-    const MAX=640;let w=img.width,h=img.height;
+    const MAX=1000;let w=img.width,h=img.height;
     if(Math.max(w,h)>MAX){const s=MAX/Math.max(w,h);w=Math.round(w*s);h=Math.round(h*s)}
     const c=document.createElement("canvas");c.width=w;c.height=h;c.getContext("2d").drawImage(img,0,0,w,h);
     cb(c.toDataURL("image/jpeg",0.7));
@@ -1086,6 +1086,17 @@ function updateCounts(){
 /* 初始化 */
 $("f_photo").addEventListener("change",function(e){handlePhotoSelect(e.target.files);e.target.value=""});
 $("f_ansphoto").addEventListener("change",function(e){handleAnsPhotoSelect(e.target.files);e.target.value=""});
+/* 框选画布事件绑定（鼠标 + 触摸） */
+(function(){
+  var c=$("cropCanvas");
+  if(!c)return;
+  c.addEventListener("mousedown",cropStart);
+  c.addEventListener("mousemove",cropMove);
+  window.addEventListener("mouseup",cropUp);
+  c.addEventListener("touchstart",cropStart,{passive:false});
+  c.addEventListener("touchmove",cropMove,{passive:false});
+  c.addEventListener("touchend",cropUp);
+})();
 updateCounts();renderBank();renderReview();
 
 /* iOS 添加到主屏幕提示 */
@@ -1146,4 +1157,6 @@ function initMotivation(){
 initMotivation();
 </script>
 </body>
+</html>y>
+</html>
 </html>
