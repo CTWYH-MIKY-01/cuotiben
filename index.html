@@ -470,7 +470,7 @@ async function callOcrImage(dataUrl){
   const form=new URLSearchParams();
   form.set("apikey",key);
   form.set("language","chs");
-  form.set("base64url",dataUrl);
+  form.set("base64Image",dataUrl);
   form.set("isOverlayRequired","false");
   let res;
   try{res=await fetch(url,{method:"POST",body:form})}
